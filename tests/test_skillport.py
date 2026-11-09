@@ -182,3 +182,80 @@ def test_estimate_tokens():
     assert sp.estimate_tokens("") == 0
     assert sp.estimate_tokens("abcd") == 1
     assert sp.estimate_tokens("あ") >= 1
+
+
+def test_agents_lists_fable_and_grok(capsys):
+    assert sp.main(["agents"]) == 0
+    out = capsys.readouterr().out
+    assert "fable" in out
+    assert "grok" in out
+    assert ".grok/skills" in out
+    # Fable 5.2 uses the standard Claude / Agent Skills directory
+    rows = [line for line in out.splitlines() if line.startswith("fable\t") or line.startswith("claude\t")]
+    assert len(rows) == 2
+    assert all(".claude/skills" in row for row in rows)
+
+
+def test_install_grok_and_fable(tmp_path, capsys):
+    skill = write_skill(tmp_path, "tidy-notes")
+    project = tmp_path / "proj"
+    project.mkdir()
+    assert sp.main(["install", str(skill), "--root", str(project), "--agents", "fable,grok"]) == 0
+    out = capsys.readouterr().out
+    assert (project / ".claude" / "skills" / "tidy-notes" / "SKILL.md").is_file()
+    assert (project / ".grok" / "skills" / "tidy-notes" / "SKILL.md").is_file()
+    assert "grok" in out
+
+
+def test_target_agent_name_fable(tmp_path):
+    skill = write_skill(tmp_path, "tidy-notes")
+    project = tmp_path / "proj"
+    project.mkdir()
+    assert sp.main(["install", str(skill), "--root", str(project), "--target", "fable"]) == 0
+    assert (project / ".claude" / "skills" / "tidy-notes" / "SKILL.md").is_file()
+    assert not (project / "fable").exists()
+
+
+def test_target_agent_name_grok(tmp_path):
+    skill = write_skill(tmp_path, "tidy-notes")
+    project = tmp_path / "proj"
+    project.mkdir()
+    assert sp.main(["install", str(skill), "--root", str(project), "--target", "grok"]) == 0
+    assert (project / ".grok" / "skills" / "tidy-notes" / "SKILL.md").is_file()
+
+
+def test_target_still_accepts_directory(tmp_path):
+    skill = write_skill(tmp_path, "tidy-notes")
+    target = tmp_path / "elsewhere"
+    assert sp.main(["install", str(skill), "--target", str(target)]) == 0
+    assert (target / "tidy-notes" / "SKILL.md").is_file()
+
+
+def test_claude_and_fable_share_destination(tmp_path, capsys):
+    skill = write_skill(tmp_path, "tidy-notes")
+    project = tmp_path / "proj"
+    project.mkdir()
+    assert sp.main(["install", str(skill), "--root", str(project), "--agents", "claude,fable"]) == 0
+    out = capsys.readouterr().out
+    # One write, both agent names mentioned
+    dests = list((project / ".claude" / "skills").iterdir())
+    assert len(dests) == 1
+    assert "claude" in out and "fable" in out
+    assert out.count("installed") == 1
+
+
+def test_default_agents_include_grok(tmp_path):
+    skill = write_skill(tmp_path, "tidy-notes")
+    project = tmp_path / "proj"
+    project.mkdir()
+    assert sp.main(["install", str(skill), "--root", str(project)]) == 0
+    assert (project / ".grok" / "skills" / "tidy-notes" / "SKILL.md").is_file()
+    assert (project / ".claude" / "skills" / "tidy-notes" / "SKILL.md").is_file()
+
+
+def test_is_agent_name():
+    assert sp.is_agent_name("fable")
+    assert sp.is_agent_name("grok")
+    assert not sp.is_agent_name("./fable")
+    assert not sp.is_agent_name("not-an-agent")
+    assert not sp.is_agent_name(".grok/skills")

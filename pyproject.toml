@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "skillport"
-version = "0.1.1"
-description = "Install one skill folder into Claude Code, Cursor, Codex and Copilot paths and catch copy drift."
+version = "0.1.2"
+description = "Install one skill folder into Claude, Fable, Grok, Cursor, Codex and Copilot paths and catch copy drift."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [{name = "Karl Perron"}]
-keywords = ["ai", "agent-skills", "cli", "claude", "cursor", "copilot", "codex"]
+keywords = ["ai", "agent-skills", "cli", "claude", "fable", "grok", "cursor", "copilot", "codex"]
 classifiers = [
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",

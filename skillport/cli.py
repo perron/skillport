@@ -10,20 +10,27 @@ import sys
 from pathlib import Path
 from typing import Iterable
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 # Default install locations relative to a project root, and optional home paths.
 # Project-relative paths are used unless --global is set (home paths only).
 # These follow public docs and widely reported conventions; override with --target.
+# fable shares Claude's directories because Claude Fable 5.2 uses the standard
+# Agent Skills / Claude Code skill layout (.claude/skills), not a separate format.
+# grok uses the documented Grok Build paths (.grok/skills). Grok Bot (the chat
+# product) does not publish one official repo-root skill path that we could
+# verify; pass --target for a custom folder.
 AGENT_PATHS = {
     "claude": {"project": ".claude/skills", "home": ".claude/skills"},
+    "fable": {"project": ".claude/skills", "home": ".claude/skills"},
     "agents": {"project": ".agents/skills", "home": ".agents/skills"},
     "copilot": {"project": ".github/skills", "home": None},
     "cursor": {"project": ".cursor/skills", "home": ".cursor/skills"},
     "codex": {"project": ".codex/skills", "home": ".codex/skills"},
+    "grok": {"project": ".grok/skills", "home": ".grok/skills"},
 }
 
-DEFAULT_AGENTS = ("claude", "agents", "copilot", "cursor", "codex")
+DEFAULT_AGENTS = ("claude", "fable", "agents", "copilot", "cursor", "codex", "grok")
 
 
 def estimate_tokens(text: str) -> int:
@@ -110,6 +117,31 @@ def resolve_target(agent: str, root: Path, global_install: bool) -> Path:
     return root / spec["project"]
 
 
+def is_agent_name(value: str) -> bool:
+    """True when value is a known agent key, not a filesystem path."""
+    if not value or value.startswith(".") or "/" in value or "\\" in value:
+        return False
+    return value in AGENT_PATHS
+
+
+def grouped_destinations(
+    agents: Iterable[str], root: Path, global_install: bool
+) -> list[tuple[tuple[str, ...], Path]]:
+    """Group agents that share the same destination folder (e.g. claude and fable)."""
+    order: list[str] = []
+    groups: dict[str, list[str]] = {}
+    paths: dict[str, Path] = {}
+    for agent in agents:
+        parent = resolve_target(agent, root, global_install)
+        key = str(parent)
+        if key not in groups:
+            groups[key] = []
+            paths[key] = parent
+            order.append(key)
+        groups[key].append(agent)
+    return [(tuple(groups[k]), paths[k]) for k in order]
+
+
 def install_one(
     skill_dir: Path,
     dest_parent: Path,
@@ -180,21 +212,29 @@ def cmd_agents(_: argparse.Namespace) -> int:
     return 0
 
 
+def _print_installed(name: str, dest: Path, agents: tuple[str, ...] | None = None) -> None:
+    kind = "link" if dest.is_symlink() else "copy"
+    suffix = f"; agents: {', '.join(agents)}" if agents and len(agents) > 1 else ""
+    print(f"installed {name} -> {dest} ({kind}{suffix})")
+
+
 def cmd_install(args: argparse.Namespace) -> int:
     skill_dir = Path(args.skill_dir)
     root = Path(args.root).resolve()
-    agents = _split_agents(args.agents)
-    dests = []
     name = skill_name(skill_dir)
+    dests: list[tuple[Path, tuple[str, ...] | None]] = []
     if args.target:
-        dests.append(install_one(skill_dir, Path(args.target), link=args.link, name=name))
+        if is_agent_name(args.target):
+            parent = resolve_target(args.target, root, args.global_install)
+            dests.append((install_one(skill_dir, parent, link=args.link, name=name), (args.target,)))
+        else:
+            dests.append((install_one(skill_dir, Path(args.target), link=args.link, name=name), None))
     else:
-        for agent in agents:
-            parent = resolve_target(agent, root, args.global_install)
-            dests.append(install_one(skill_dir, parent, link=args.link, name=name))
-    for dest in dests:
-        kind = "link" if dest.is_symlink() else "copy"
-        print(f"installed {name} -> {dest} ({kind})")
+        agents = _split_agents(args.agents)
+        for group, parent in grouped_destinations(agents, root, args.global_install):
+            dests.append((install_one(skill_dir, parent, link=args.link, name=name), group))
+    for dest, group in dests:
+        _print_installed(name, dest, group)
     return 0
 
 
@@ -228,10 +268,10 @@ def cmd_sync(args: argparse.Namespace) -> int:
     root = Path(args.root).resolve()
     agents = _split_agents(args.agents)
     name = skill_name(skill_dir)
-    for agent in agents:
-        parent = resolve_target(agent, root, args.global_install)
+    for group, parent in grouped_destinations(agents, root, args.global_install):
         dest = install_one(skill_dir, parent, link=args.link, name=name)
-        print(f"synced {name} -> {dest}")
+        extra = f" ({', '.join(group)})" if len(group) > 1 else ""
+        print(f"synced {name} -> {dest}{extra}")
     return 0
 
 
@@ -260,7 +300,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_install.add_argument("skill_dir")
     p_install.add_argument("--root", default=".", help="project root (default: current directory)")
     p_install.add_argument("--agents", help="comma-separated agents (default: all)")
-    p_install.add_argument("--target", help="install into this directory instead of the agent map")
+    p_install.add_argument(
+        "--target",
+        help="known agent name (fable, grok, claude, ...) or a directory to install into instead of the agent map",
+    )
     p_install.add_argument("--link", action="store_true", help="symlink instead of copy")
     p_install.add_argument("--global", dest="global_install", action="store_true", help="use user-level paths")
     p_install.set_defaults(func=cmd_install)

@@ -10,7 +10,7 @@ If the report includes a working exploit against this tool, describe the impact 
 
 ## Notes for this tool
 
-skillport copies or symlinks a skill folder into agent paths you choose. It will refuse skill names that contain path separators, so an untrusted SKILL.md cannot write outside the destination directory. Review a skill before installing it (see also skillguard).
+skillport copies or symlinks a skill folder into agent paths you choose, including the fable and grok targets. It will refuse skill names that contain path separators, so an untrusted SKILL.md cannot write outside the destination directory. Review a skill before installing it (see also skillguard).
 
 ## Supported versions
 
