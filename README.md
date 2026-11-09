@@ -9,8 +9,13 @@ It is not a fork of the Vercel Skills CLI or of any skill manager.
 
 ## Install
 
+Python 3.10 or later.
+
+From a checkout:
+
 ```bash
-python3 -m pip install -e .
+python3 -m pip install .
+python3 -m pip install -e ".[dev]"  # optional, for tests
 skillport --help
 ```
 
@@ -59,3 +64,22 @@ default user path). `--target DIR` writes to a single folder instead.
 Inspired by public reports of cross-agent skill drift and by GitHub's documented
 Copilot skill paths (`.claude/skills`, `.github/skills`, `.agents/skills`). No
 source was copied from those tools or posts.
+
+## Limits
+
+- Default paths follow public docs and common conventions; they may lag a vendor change. Use `--target` to override.
+- `status` detects drift by hashing file contents. It does not watch for live edits.
+- Skill names with path separators (`/` or `\\`) are refused so an untrusted frontmatter `name` cannot write outside the destination directory.
+- `--global` uses folders under your home directory. Copilot has no default user-level path.
+
+From GitHub you can also install with:
+
+```bash
+python3 -m pip install git+https://github.com/perron/skillport.git
+```
+
+This package is not published to PyPI.
+
+## License
+
+MIT. See `LICENSE`. Please read `SECURITY.md` before filing a vulnerability report.

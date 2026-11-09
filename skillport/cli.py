@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from typing import Iterable
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 # Default install locations relative to a project root, and optional home paths.
 # Project-relative paths are used unless --global is set (home paths only).
@@ -48,13 +48,26 @@ def parse_frontmatter(text: str) -> dict:
     return data
 
 
+def validate_install_name(name: str) -> str:
+    cleaned = (name or "").strip()
+    if (
+        not cleaned
+        or cleaned in {".", ".."}
+        or "/" in cleaned
+        or "\\" in cleaned
+        or "\0" in cleaned
+    ):
+        raise ValueError(f"invalid skill name {name!r}: must be a single path segment")
+    return cleaned
+
+
 def skill_name(skill_dir: Path) -> str:
     skill_md = find_skill_md(skill_dir)
     if skill_md:
         name = parse_frontmatter(skill_md.read_text(encoding="utf-8", errors="replace")).get("name")
         if name:
-            return name
-    return skill_dir.name
+            return validate_install_name(name)
+    return validate_install_name(skill_dir.name)
 
 
 def find_skill_md(skill_dir: Path) -> Path | None:
@@ -110,7 +123,7 @@ def install_one(
     if find_skill_md(skill_dir) is None:
         raise FileNotFoundError(f"no SKILL.md in {skill_dir}")
     dest_parent.mkdir(parents=True, exist_ok=True)
-    dest = dest_parent / (name or skill_name(skill_dir))
+    dest = dest_parent / validate_install_name(name or skill_name(skill_dir))
     if dest.exists() or dest.is_symlink():
         if dest.is_dir() and not dest.is_symlink():
             shutil.rmtree(dest)
